@@ -408,3 +408,108 @@ def save_local_affine_benchmark(
         axis.legend(frameon=False, fontsize=8)
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(fig)
+
+
+def save_three_model_figure(
+    uncompensated: np.ndarray,
+    blockwise_compensated: np.ndarray,
+    affine_compensated: np.ndarray,
+    homography_compensated: np.ndarray,
+    *,
+    affine_vx: np.ndarray,
+    affine_vy: np.ndarray,
+    homography_vx: np.ndarray,
+    homography_vy: np.ndarray,
+    metrics: dict[str, dict],
+    title: str,
+    output_path: Path,
+) -> None:
+    """Save qualitative B/BA/BH compensation and field diagnostics."""
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig, axes = plt.subplots(2, 3, figsize=(15, 8.5), constrained_layout=True)
+    panels = (
+        (uncompensated, "Uncompensated events"),
+        (blockwise_compensated, "B: block-wise translation"),
+        (affine_compensated, "BA: local affine"),
+        (homography_compensated, "BH: local homography"),
+    )
+    for axis, (image, label) in zip(axes.flat[:4], panels):
+        axis.imshow(_normalise_for_display(image), cmap="gray", vmin=0, vmax=1)
+        axis.set_title(label)
+        axis.axis("off")
+
+    for axis, vx_field, vy_field, label in (
+        (axes[1, 1], affine_vx, affine_vy, "BA endpoint displacement"),
+        (axes[1, 2], homography_vx, homography_vy, "BH endpoint displacement"),
+    ):
+        magnitude = np.hypot(vx_field, vy_field)
+        image = axis.imshow(magnitude, cmap="viridis")
+        step = 12
+        yy, xx = np.mgrid[0:vx_field.shape[0]:step, 0:vx_field.shape[1]:step]
+        axis.quiver(
+            xx,
+            yy,
+            vx_field[::step, ::step],
+            vy_field[::step, ::step],
+            color="white",
+            angles="xy",
+            scale_units="xy",
+            scale=1.2,
+            width=0.0025,
+        )
+        axis.set_title(label)
+        axis.set_xlim(0, vx_field.shape[1] - 1)
+        axis.set_ylim(vx_field.shape[0] - 1, 0)
+        fig.colorbar(image, ax=axis, shrink=0.82, label="pixels / window")
+
+    fig.suptitle(
+        f"{title}\n"
+        f"median EPE: B {metrics['blockwise']['median_endpoint_error_px']:.2f} px | "
+        f"BA {metrics['affine']['median_endpoint_error_px']:.2f} px | "
+        f"BH {metrics['homography']['median_endpoint_error_px']:.2f} px",
+        fontsize=11,
+    )
+    fig.savefig(output_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_three_model_benchmark(
+    results: list[dict],
+    *,
+    output_path: Path,
+) -> None:
+    """Summarize B, BA, and BH accuracy across DSEC windows."""
+    if not results:
+        return
+    x = np.arange(len(results), dtype=np.float32)
+    labels = [str(item["flow_index"]) for item in results]
+    width = 0.26
+    fig, axes = plt.subplots(1, 2, figsize=(12, 4.3), constrained_layout=True)
+    for offset, prefix, label in (
+        (-width, "blockwise", "B: block-wise"),
+        (0.0, "affine", "BA: local affine"),
+        (width, "homography", "BH: local homography"),
+    ):
+        axes[0].bar(
+            x + offset,
+            [item[f"{prefix}_median_endpoint_error_px"] for item in results],
+            width,
+            label=label,
+        )
+        axes[1].bar(
+            x + offset,
+            [100.0 * item[f"{prefix}_within_2px"] for item in results],
+            width,
+            label=label,
+        )
+    axes[0].set_ylabel("median EPE (px)")
+    axes[0].set_title("DSEC flow error on valid pixels")
+    axes[1].set_ylabel("valid pixels with EPE <= 2 px (%)")
+    axes[1].set_title("Motion accuracy coverage")
+    for axis in axes:
+        axis.set_xticks(x, labels)
+        axis.set_xlabel("DSEC forward-flow window")
+        axis.grid(axis="y", alpha=0.25)
+        axis.legend(frameon=False, fontsize=8)
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
