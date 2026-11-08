@@ -1,5 +1,8 @@
 # Local Homography Experiment
 
+Status: validated neutral result. BH is retained as an optional selected-region
+model; BA remains the default.
+
 ## Scope and independence
 
 This experiment compares three models on identical DSEC event windows:
@@ -68,9 +71,8 @@ At `(y=240, x=96)`:
 | 8 | 2.65 px | **1.94 px** | 1.96 px |
 | 12 | 1.76 px | 1.76 px | 1.76 px |
 
-Homography does not improve the previously difficult patch over affine. Windows
-2 and 12 retain the B result in all models because the local models are not
-accepted there.
+Homography does not improve the previously difficult patch over affine.
+Windows 2 and 12 retain the same B patch median in all three models.
 
 ## Additional metrics
 
@@ -91,6 +93,14 @@ On the free Colab x86 CPU runtime:
 - homography estimation itself: 1.74-1.94 seconds per window;
 - observed RAM use remained below 2.5 GB out of 12.67 GB.
 
+Final executed notebook:
+[DVS_Local_Homography_FINAL](https://colab.research.google.com/drive/1na8VvraDsmXwcJtxwUn9tQRBqmeukroN).
+
+Qualitative results:
+[window 2](../outputs/homography/homography_f02.png),
+[window 8](../outputs/homography/homography_f08.png),
+[window 12](../outputs/homography/homography_f12.png).
+
 The shared B stage dominates runtime; homography adds little incremental cost
 after the block field exists.
 
@@ -101,15 +111,28 @@ variation `<= 20 px`) rejects all regions on window 2 and produces mean BH
 median EPE `1.642 px`. It is worse than both the original BH configuration and
 BA, so it is not used.
 
+## Reproducibility replay
+
+During the final cleanup, the original configuration was replayed on local ARM
+CPU to regenerate the three per-window figures that were missing from Git. No
+parameter or result file was changed:
+
+- both runs report B/BA/BH median EPE rounded to the same values in all three
+  windows;
+- the ARM replay mean median EPE is BA `1.518864 px` and BH `1.517201 px`,
+  versus frozen Colab values `1.519326 px` and `1.517379 px`;
+- the difference is below `0.001 px` and changes no conclusion;
+- `outputs/homography/summary.json` and `results.csv` remain the frozen Colab
+  results; only `homography_f02/f08/f12.png` were copied from the replay.
+
 ## Conclusion
 
 Local homography is technically valid and occasionally provides the best
 window-level median EPE, but it does not provide a robust improvement over BA
 on this driving sample. The extra two perspective parameters are not reliably
 supported by non-planar depth variation, near-field parallax, and multiple
-motion layers. BA remains the practical default; BH should be retained as a
-selected-region model for future data where planar support can be identified
-more reliably.
+motion layers. BA remains the practical default; BH is retained as a
+selected-region option.
 
 ## Reproduce
 

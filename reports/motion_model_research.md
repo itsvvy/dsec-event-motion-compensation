@@ -1,7 +1,8 @@
 # Motion Model Research: Block Translation, Local Affine, and Homography
 
-Status: research only. No model described here has been implemented on this
-branch.
+Status: historical pre-implementation design note. The three models have since
+been implemented and validated on `main`; local affine is the current default,
+and local homography is retained as a neutral optional result.
 
 Baseline: `baseline-v0.1.0` (`30ae2bb`), the validated DSEC
 constant-translation experiment.
@@ -22,9 +23,19 @@ This order is deliberate:
 - homography adds perspective but assumes a plane, so it should be evaluated
   per region rather than applied blindly to the full driving frame.
 
-The next accepted experiment should be block-wise translation. Affine and
-homography should use independent experiment branches from the same stable
-`main`, after the common motion-model interface has passed review.
+The implementation sequence followed this order. Each experiment used an
+independent branch from stable `main` and was merged only after synthetic and
+DSEC validation.
+
+Current outcomes:
+
+- B: mean median EPE `1.76 px`;
+- BA: mean median EPE `1.52 px`, sub-2-px coverage `63.7%`;
+- BH: mean median EPE `1.52 px`, sub-2-px coverage `62.8%`.
+
+BA is the default. The actual BH implementation estimates local homographies
+directly with ECC initialized by B; it does not use the proposed DLT/RANSAC
+feature pipeline.
 
 ## Evidence from the baseline
 
@@ -249,10 +260,10 @@ Branches should be created from stable `main` and retained after merge.
 | `exp/local-affine` | initial affine from block vectors, ECC/contrast refinement | lower median EPE than block translation on rotation-rich windows |
 | `exp/homography` | RANSAC/DLT on one selected plane | beat affine inside the chosen plane with sufficient inlier/overlap support |
 
-The shared interface and evaluation utilities should be introduced in a small
-preparatory PR before these branches begin. Each model branch must include a
-synthetic known-transform test and the same nine DSEC cases used by the
-baseline.
+This common interface was a design proposal rather than the final code shape.
+The implemented modules share data, event-image, block-field, and evaluation
+utilities. Every model includes synthetic known-transform tests, and B/BA/BH
+use the same three dense DSEC windows.
 
 ## Evaluation design
 
@@ -262,8 +273,8 @@ Primary correctness metric:
 EPE(x) = || (W_theta(x, t_i) - x) - flow_gt(x) ||_2
 ```
 
-The current baseline stores only a per-patch median flow. The next experiment
-should evaluate at valid event or pixel samples, then report:
+The constant baseline reports a per-patch median flow. The subsequent B/BA/BH
+experiments evaluate at every valid DSEC flow pixel and report:
 
 - median and mean EPE;
 - fraction under 1, 2, and 3 px;

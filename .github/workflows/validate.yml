@@ -36,9 +36,12 @@ jobs:
           python -c "from tests.test_synthetic import test_recovers_known_constant_translation as a; a(); print('translation test passed')"
           python -c "from tests.test_blockwise import test_phase_correlation_recovers_content_motion as a, test_blockwise_estimation_recovers_two_motion_regions as b, test_short_baseline_resolves_spurious_zero_long_peak as c; a(); b(); c(); print('blockwise tests passed')"
           python -c "from tests.test_affine import test_local_affine_recovers_linear_motion_field as a, test_event_image_ecc_recovers_affine as b; a(); b(); print('affine tests passed')"
+          python -c "from tests.test_homography import test_event_image_ecc_recovers_homography as a, test_local_homography_field_uses_blockwise_fallback as b, test_rejected_homography_regions_keep_blockwise_field as c; a(); b(); c(); print('homography tests passed')"
 
-      - name: Validate notebook JSON
+      - name: Validate notebooks and frozen artifacts
         run: |
           python -m json.tool notebooks/dsec_event_motion_compensation.ipynb > /dev/null
           python -m json.tool notebooks/blockwise_translation.ipynb > /dev/null
           python -m json.tool notebooks/local_affine.ipynb > /dev/null
+          python -m json.tool notebooks/homography.ipynb > /dev/null
+          python scripts/validate_repository.py

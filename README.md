@@ -8,76 +8,77 @@ This repository tests **motion compensation of the DVS event image itself**.
 It does not deblur a CIS RGB image, perform image-to-event reconstruction, or
 estimate dense optical flow with a neural network.
 
-## Algorithm
+## Frozen status
 
-For a finite event window `[t0, t1]`, events are split into temporal bins and
-accumulated with sign by polarity. A constant local displacement
-`theta = (vx, vy)` is searched coarse-to-fine. A slice at normalized time
-`tau` is warped toward the window midpoint:
+The algorithm, parameters, dataset windows, metrics, and final figures are
+frozen at `experiment-v0.4-homography`.
 
-```text
-x' = x - vx * (tau - 0.5)
-y' = y - vy * (tau - 0.5)
-```
+| model | composition | status |
+|---|---|---|
+| **B** | block-wise translation | validated baseline |
+| **BA** | B fallback + local affine | **current default** |
+| **BH** | B fallback + independent local homography | neutral optional result |
+| **B3** | B + A + H hybrid | not implemented; deferred |
 
-The objective is the variance of the polarity-weighted, lightly smoothed
-event image after all slices are accumulated. The estimate is the displacement
-over the complete window, not velocity per millisecond.
+BH does not read or blend BA. B provides initialization and fallback for both
+local models. No parameter tuning or new model work is planned in this stage.
 
-The implementation is intentionally small and deterministic:
+## Implemented motion models
 
-- no training and no GPU requirement;
-- DSEC events, timestamps, and calibration are read directly;
-- event windows are selected from the official forward-flow timeline;
-- DSEC's 16-bit forward optical flow provides an independent correctness check
-  in each patch;
-- the full run covers three 100 ms windows and three spatial patches on CPU.
+For an event window, events are split into nine signed temporal bins and
+warped toward the window midpoint. The endpoint displacement field is `v(x,y)`.
+Dense fields come from block-wise, affine ECC, or homography ECC estimation.
+
+| model | estimation | fallback |
+|---|---|---|
+| constant translation | variance objective over one local patch | none |
+| B | phase correlation + bounded contrast refinement on `64 x 64` tiles | global translation |
+| BA | B initialization + `160 x 160` ECC affine regions | B field |
+| BH | B initialization + `160 x 160` independent ECC homography regions | B field |
+
+Accepted local regions are tapered into the B field. Rejected BA or BH regions
+retain B exactly. DSEC forward flow is used only for evaluation, never inside
+the optimizer.
+
+The baseline report, current dense results, parameters, and residual analysis
+are in:
+
+- [`reports/feasibility_report.md`](reports/feasibility_report.md);
+- [`reports/blockwise_translation_report.md`](reports/blockwise_translation_report.md);
+- [`reports/local_affine_report.md`](reports/local_affine_report.md);
+- [`reports/homography_report.md`](reports/homography_report.md).
 
 ## DSEC sample
 
 The experiment uses the smallest practical driving sequence:
 
 - sequence: `thun_00_a`, left event camera;
-- event archive: about 285 MB;
-- forward optical-flow labels: about 11 MB;
+- event archive: about 299 MB;
+- forward optical-flow labels: about 12 MB;
 - event-camera resolution: 640 x 480.
 
 Files are downloaded at runtime from the official
 [DSEC download page](https://dsec.ifi.uzh.ch/dsec-datasets/download/).
 Dataset license: CC BY-SA 4.0.
 
-## Reproduce locally
+## Final results
 
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-python -c 'from tests.test_synthetic import test_recovers_known_constant_translation as t; t()'
-python scripts/run_dsec_demo.py
-```
+All three dense models use the same DSEC sequence and windows.
 
-The first run downloads and extracts the event sequence. Subsequent runs reuse
-`data/`. Results are written to `outputs/`:
+| window | B median EPE | BA median EPE | BH median EPE | B <= 2 px | BA <= 2 px | BH <= 2 px |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2 | 1.61 px | 1.47 px | 1.44 px | 58.1% | 65.2% | 67.0% |
+| 8 | 2.03 px | 1.61 px | 1.53 px | 49.6% | 58.9% | 59.3% |
+| 12 | 1.64 px | 1.47 px | 1.58 px | 59.0% | 67.1% | 62.0% |
+| mean | 1.760 px | **1.519 px** | 1.517 px | 55.6% | **63.7%** | 62.8% |
 
-- `summary.json`: all requested metrics;
-- `results.csv`: flat experiment table;
-- `dsec_fXX_yYYY_xXXX.png`: before/after images and objective surface.
+BA is the default because it has the best sub-2-pixel coverage, better mean EPE,
+and no Window 12 regression. BH's `0.002 px` mean median-EPE advantage is not a
+robust improvement.
 
-## Colab
+![B/BA/BH benchmark](outputs/homography/benchmark_summary.png)
 
-Open `notebooks/dsec_event_motion_compensation.ipynb` in Google Colab. It uses
-the free CPU runtime, installs only the small scientific Python dependencies,
-clones this repository, runs the test and benchmark, and displays the results.
-
-Block-wise translation has a dedicated experiment notebook:
-`notebooks/blockwise_translation.ipynb`.
-
-Local affine has a separate experiment notebook:
-`notebooks/local_affine.ipynb`.
-
-## Reference results
-
-Local CPU result for three 100 ms windows and three 128 x 128 patches:
+Historical baseline result for three 100 ms windows and three 128 x 128 patches:
 
 | metric | result |
 |---|---:|
@@ -87,34 +88,62 @@ Local CPU result for three 100 ms windows and three 128 x 128 patches:
 | mean gradient-energy gain | 8.51x |
 | benchmark runtime after inputs are cached | 4.63 s |
 
-The corrected block-wise experiment uses dense per-pixel DSEC flow evaluation:
-
-| metric | result |
-|---|---:|
-| mean median endpoint error | 1.76 px |
-| mean valid pixels with EPE <= 2 px | 55.6% |
-| mean warp coverage | 98.8% |
-
-The local-affine experiment preserves block-wise translation as its fallback
-and improves the three-window mean median EPE from 1.76 px to 1.52 px.
-
-The local-homography experiment is independent from local affine: BH uses only
-the block-wise field for initialization and fallback. On the same three
-windows, BH reaches a mean median EPE of 1.52 px but does not improve sub-2-px
-coverage over BA (`62.8%` vs. `63.7%`) and regresses on window 12. Homography
-is therefore implemented and validated as a selected-region experiment, but it
-is not the default model on this non-planar, multi-motion sample.
-
-The endpoint error is measured against the median valid optical-flow vector in
-each patch. This is an approximation because DSEC's 100 ms flow field contains
-rotation, parallax, and independently moving objects rather than one exact
-global translation.
+The baseline patch EPE is not directly comparable with the later dense
+per-pixel EPE. The dense experiments evaluate every valid DSEC flow pixel and
+therefore supersede the patch-level 1.35 px summary for model selection.
 
 Two patches track DSEC flow consistently. A textured left-side patch is a
 deliberate failure case: contrast still increases, but the estimated motion
 does not match the patch median because multiple motions coexist. This shows
 why a single full-frame translation is insufficient for a moving driving scene
 and why the production design should use local/multi-model compensation.
+
+## Colab notebooks
+
+Repository notebooks clone `main` and use a free CPU runtime. The linked
+executed Colab copies are frozen historical outputs; the latest homography copy
+has also been aligned to `main`.
+
+| stage | notebook | final executed Colab |
+|---|---|---|
+| constant baseline | [`notebooks/dsec_event_motion_compensation.ipynb`](notebooks/dsec_event_motion_compensation.ipynb) | repository notebook |
+| block-wise phase fix | [`notebooks/blockwise_translation.ipynb`](notebooks/blockwise_translation.ipynb) | [Colab](https://colab.research.google.com/drive/1f7KhjyxGqm27Dtg7fNGbjq9gGpetpj3V) |
+| local affine | [`notebooks/local_affine.ipynb`](notebooks/local_affine.ipynb) | [Colab](https://colab.research.google.com/drive/14mlnk92BMVWoRsIjAudiT45A4MhIl1w8) |
+| local homography | [`notebooks/homography.ipynb`](notebooks/homography.ipynb) | [Colab](https://colab.research.google.com/drive/1na8VvraDsmXwcJtxwUn9tQRBqmeukroN) |
+
+The homography notebook is the latest integrated B/BA/BH run.
+
+## Reproduce
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python -m pip install pytest
+python -m pytest -q tests
+python scripts/validate_repository.py
+mkdir -p work/reproduced
+
+python scripts/run_dsec_demo.py \
+  --data-dir data --output-dir work/reproduced/baseline \
+  --flow-indices 2 8 12
+python scripts/run_blockwise_demo.py \
+  --data-dir data --output-dir work/reproduced/blockwise \
+  --flow-indices 2 8 12 --tile-size 64 --stride 32
+python scripts/run_local_affine_demo.py \
+  --data-dir data --output-dir work/reproduced/local_affine \
+  --flow-indices 2 8 12 --tile-size 64 --stride 32
+python scripts/run_homography_demo.py \
+  --data-dir data --output-dir work/reproduced/homography \
+  --flow-indices 2 8 12 --tile-size 64 --stride 32
+```
+
+The first run downloads about 299 MB of events and 12 MB of flow/timestamps.
+Later runs reuse `data/`. Committed frozen results remain under `outputs/`.
+[`outputs/checksums.sha256`](outputs/checksums.sha256) records every frozen
+result and figure.
+Replay is deterministic on the same software stack; CPU, OpenCV, and SIMD
+differences can change low-order digits while retaining the reported metrics.
 
 ## Scope and limitations
 
@@ -126,8 +155,10 @@ and why the production design should use local/multi-model compensation.
   parallax, or independently moving objects.
 - The contrast objective can select a coherent sub-population rather than the
   patch median; flow-supervised evaluation is therefore necessary.
-- A practical next step is block-wise motion estimation plus homography or
-  locally fitted affine motion, followed by validation on 20-50 ms windows.
+- Near-field parallax, non-planar depth, and independently moving layers remain
+  in the lower-left patch for BA and BH.
+- A B3 hybrid, neural estimation, new parameter tuning, and RK3588 porting are
+  outside the frozen scope.
 
 ## Experiment stages
 
@@ -135,12 +166,16 @@ The stable constant-translation baseline is tagged `baseline-v0.1.0`.
 Subsequent work is isolated on retained experiment branches and enters `main`
 only after its synthetic and DSEC validation passes.
 
-| stage | branch | status |
-|---|---|---|
-| block-wise translation | `exp/blockwise-translation` | implemented and evaluated |
-| block-wise phase fix | `fix/blockwise-phase-initialization` | short-baseline initialization validated |
-| local affine | `exp/local-affine` | implemented and evaluated |
-| local homography | `exp/homography` | implemented; no robust gain over local affine |
+| stage | retained branch | tag | status |
+|---|---|---|---|
+| constant baseline | `main` | `baseline-v0.1.0` | validated |
+| motion-model research | `docs/motion-model-research` | — | historical design note |
+| block-wise translation | `exp/blockwise-translation` | `experiment-v0.2-blockwise` | validated |
+| phase initialization fix | `fix/blockwise-phase-initialization` | `blockwise-v0.2.1-phase-fix` | validated |
+| local affine | `exp/local-affine` | `experiment-v0.3-local-affine` | validated; **default** |
+| local homography | `exp/homography` | `experiment-v0.4-homography` | validated; neutral/optional |
+
+All experiment branches are retained. No pushed history is rewritten or deleted.
 
 ## Citations
 

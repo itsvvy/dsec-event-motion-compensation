@@ -1,5 +1,8 @@
 # Block-wise Translation Experiment
 
+Status: validated historical stage. This model remains B, the stable fallback
+for BA and BH. The current default is local affine (BA).
+
 ## Scope
 
 This experiment replaces one global translation with overlapping local
@@ -48,6 +51,9 @@ On a free Colab x86 CPU runtime, the same three windows take approximately
 The complete first Colab run, including the 299 MB event download, took about
 3 minutes 37 seconds and remained within the 12.67 GB runtime memory limit.
 
+Final executed notebook:
+[DSEC_DVS_Blockwise_Translation_PhaseFix_FINAL](https://colab.research.google.com/drive/1f7KhjyxGqm27Dtg7fNGbjq9gGpetpj3V).
+
 ## Visual result
 
 The block-wise compensated image preserves substantially more structure than a
@@ -56,6 +62,11 @@ expected because each tile still assumes pure translation and the 100 ms window
 contains rotation and depth change.
 
 ![Block-wise comparison](../outputs/blockwise/benchmark_summary.png)
+
+Qualitative results:
+[window 2](../outputs/blockwise/blockwise_f02.png),
+[window 8](../outputs/blockwise/blockwise_f08.png),
+[window 12](../outputs/blockwise/blockwise_f12.png).
 
 ## Initialization failure and correction
 
@@ -100,9 +111,9 @@ interpolated region. This residual belongs to the model boundary and is not
 expected to disappear without local affine, homography, or motion segmentation.
 
 The full-frame result is improved, but block-wise translation is still not a
-complete solution. Local affine remains the appropriate next model for
-rotation/scale residual; homography remains deferred until a specific planar
-region is targeted.
+complete solution. Local affine was subsequently validated as BA and is the
+current default. Local homography was evaluated independently as BH and is
+retained as a neutral optional result.
 
 ## Acceptance evidence
 
@@ -111,7 +122,7 @@ region is targeted.
 - synthetic two-region translation test passes;
 - existing constant-translation test passes;
 - complete DSEC replay executes without error;
-- warp coverage is above 99%;
+- warp coverage is at least 98.7% in all three windows;
 - block-wise median EPE is below 2.5 px in all three evaluation windows;
 - all result data and representative images are generated from one command.
 

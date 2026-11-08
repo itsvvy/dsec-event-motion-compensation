@@ -1,4 +1,5 @@
 work/
+data/
 .venv/
 *.zip
 *.h5
