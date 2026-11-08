@@ -82,6 +82,11 @@ def _field_metrics(
     return dense_motion_metrics(vx, vy, flow_xy, flow_valid)
 
 
+def _median_or_nan(values: np.ndarray) -> float:
+    finite = values[np.isfinite(values)]
+    return float(np.median(finite)) if finite.size else float("nan")
+
+
 def main() -> None:
     args = parse_args()
     started = time.perf_counter()
@@ -271,11 +276,9 @@ def main() -> None:
             "homography_fallback_regions": int(
                 np.count_nonzero(homography.source_grid == "fallback")
             ),
-            "median_affine_correlation": float(
-                np.nanmedian(affine.correlation_grid)
-            ),
-            "median_homography_correlation": float(
-                np.nanmedian(homography.correlation_grid)
+            "median_affine_correlation": _median_or_nan(affine.correlation_grid),
+            "median_homography_correlation": _median_or_nan(
+                homography.correlation_grid
             ),
             "block_runtime_s": block_runtime,
             "affine_runtime_s": affine_runtime,
