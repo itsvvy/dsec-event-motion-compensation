@@ -68,6 +68,8 @@ def main() -> None:
     args = parse_args()
     started = time.perf_counter()
     files = prepare_dsec_files(args.data_dir)
+    data_prepare_runtime_s = time.perf_counter() - started
+    benchmark_started = time.perf_counter()
     timestamps = load_flow_timestamps(files["flow_times"])
     rectify_map = load_rectification_map(files["rectify_h5"])
 
@@ -185,6 +187,8 @@ def main() -> None:
         "patch_radius_px": args.radius,
         "search_radius_px": args.search_radius,
         "total_runtime_s": time.perf_counter() - started,
+        "data_prepare_runtime_s": data_prepare_runtime_s,
+        "benchmark_runtime_s": time.perf_counter() - benchmark_started,
         "results": results,
     }
     if results:

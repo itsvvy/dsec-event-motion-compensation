@@ -27,7 +27,7 @@ motion. The next validation should use block-wise or affine/homography models.
 - Search: +/-24 px coarse search at 4 px stride, then +/-4 px refinement at
   1 px stride and parabolic sub-pixel interpolation.
 - Hardware: local ARM CPU; no CUDA, no neural network.
-- Total benchmark runtime after caching inputs: 4.54 s.
+- Total benchmark runtime after caching inputs: 4.63 s.
 
 ## Quantitative result
 

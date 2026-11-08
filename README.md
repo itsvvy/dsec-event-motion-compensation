@@ -79,7 +79,7 @@ Local CPU result for three 100 ms windows and three 128 x 128 patches:
 | mean endpoint error | 3.37 px |
 | median event-image variance gain | 3.66x |
 | mean gradient-energy gain | 8.51x |
-| total benchmark runtime excluding download | 4.54 s |
+| benchmark runtime after inputs are cached | 4.63 s |
 
 The endpoint error is measured against the median valid optical-flow vector in
 each patch. This is an approximation because DSEC's 100 ms flow field contains
