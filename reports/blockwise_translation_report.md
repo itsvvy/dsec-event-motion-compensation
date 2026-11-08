@@ -15,7 +15,8 @@ No affine or homography model is used.
 - event volume: 9 temporal bins with signed polarity;
 - tile size: `64 x 64`;
 - tile stride: `32`;
-- phase-correlation initialization: first and last 3 bins;
+- phase-correlation initialization: centered single-bin short baselines plus
+  first/last 3-bin long baseline;
 - contrast refinement: +/-3 px around the phase-correlation vector;
 - block displacement bound: +/-48 px;
 - output field: bilinear interpolation through overlapping tile centers;
@@ -30,12 +31,12 @@ and should not be compared directly with the old 1.35 px patch result.
 
 | window | global median EPE | block-wise median EPE | global <= 2 px | block-wise <= 2 px | warp coverage |
 |---:|---:|---:|---:|---:|---:|
-| 2 | 20.51 px | 2.47 px | 1.0% | 43.8% | 99.1% |
-| 8 | 23.58 px | 2.39 px | 0.8% | 45.8% | 99.3% |
-| 12 | 11.73 px | 2.26 px | 0.8% | 45.8% | 99.2% |
-| mean | 18.61 px | 2.37 px | 0.8% | 45.1% | 99.2% |
+| 2 | 20.51 px | 1.61 px | 1.0% | 58.1% | 98.9% |
+| 8 | 23.58 px | 2.03 px | 0.8% | 49.6% | 98.9% |
+| 12 | 11.73 px | 1.64 px | 0.8% | 59.0% | 98.8% |
+| mean | 18.61 px | 1.76 px | 0.8% | 55.6% | 98.8% |
 
-The mean median-EPE reduction is approximately 87%. The full 640 x 480 event
+The mean median-EPE reduction is approximately 90.5%. The full 640 x 480 event
 image is therefore working as a first block-wise baseline.
 
 After inputs are cached, all three windows take about 40 seconds on the local
@@ -56,21 +57,57 @@ contains rotation and depth change.
 
 ![Block-wise comparison](../outputs/blockwise/benchmark_summary.png)
 
-## Failure still visible
+## Initialization failure and correction
 
-The high-texture lower-left patch around `(y=240,x=96)` remains difficult. Its
-per-pixel flow error is 12.22, 15.78, and 14.99 px across the three windows.
-The contrast objective can lock onto a dominant subset of event edges even
-when neighboring flow belongs to another local motion.
+The first implementation used phase correlation over the first 3 and last 3
+temporal bins, then refined only +/-3 px around that result. At flow index 8,
+the tile covering `(y=240,x=96)` had:
 
-This does not invalidate the full-frame result, but it prevents claiming that
-block-wise translation alone is a complete solution. Local affine is the next
-appropriate model for the remaining rotation/scale residual; homography should
-remain deferred until a specific planar region is targeted.
+- DSEC median flow: `(-17.63, +3.71) px`;
+- long-baseline phase result: `(0, 0)` with a misleadingly high peak score;
+- early-to-middle single-bin phase result: `(-18.05, +4.54) px`;
+- middle-to-late single-bin phase result: `(-17.54, +4.25) px`;
+- final pre-fix estimate: `(-3, +3) px`.
+
+The zero peak was not rejected because short-baseline evidence was never
+computed. The fixed initialization uses centered single bins at normalized
+time approximately 0, 0.5, and 1.0. When both short-baseline vectors agree
+within `max(6 px, 30%)`, their average is preferred; otherwise the estimate
+falls back to the long temporal baseline or the global motion. Refinement
+cropping now accounts for the actual per-slice temporal warp factor rather
+than treating the full endpoint displacement as a single-slice shift.
+
+### Before/after
+
+| case | before | after |
+|---|---:|---:|
+| all windows, mean median EPE | 2.37 px | **1.76 px** |
+| all windows, mean EPE <= 2 px | 45.1% | **55.6%** |
+| failure patch, window 2 | 12.22 px | **1.39 px** |
+| failure patch, window 8 | 15.78 px | **2.65 px** |
+| failure patch, window 12 | 14.99 px | **1.76 px** |
+
+This confirms an avoidable estimation-policy defect. The slightly lower warp
+coverage (`99.2%` to `98.8%`) results from retaining larger, more accurate
+local displacements near image boundaries.
+
+## Residual model limitation
+
+The corrected lower-left failure patch still has 1.39-2.65 px per-pixel median
+EPE. Its DSEC flow varies within the patch because of near-field parallax and
+non-linear motion, while block-wise translation represents only one vector per
+interpolated region. This residual belongs to the model boundary and is not
+expected to disappear without local affine, homography, or motion segmentation.
+
+The full-frame result is improved, but block-wise translation is still not a
+complete solution. Local affine remains the appropriate next model for
+rotation/scale residual; homography remains deferred until a specific planar
+region is targeted.
 
 ## Acceptance evidence
 
 - synthetic phase-correlation test passes;
+- synthetic spurious-zero long-baseline regression test passes;
 - synthetic two-region translation test passes;
 - existing constant-translation test passes;
 - complete DSEC replay executes without error;

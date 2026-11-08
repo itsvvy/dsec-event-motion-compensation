@@ -179,6 +179,16 @@ def main() -> None:
             ],
             "runtime_s": time.perf_counter() - window_started,
         }
+        for source in (
+            "short-consensus",
+            "short-single",
+            "long",
+            "long-low-confidence",
+            "fallback",
+            "none",
+        ):
+            key = f"blocks_{source.replace('-', '_')}"
+            row[key] = int(np.count_nonzero(block_estimate.source_grid == source))
         for center_y, center_x in PATCHES:
             radius = 64
             region = (
@@ -208,6 +218,20 @@ def main() -> None:
             row[f"blockwise_{suffix}_median_epe_px"] = block_patch[
                 "median_endpoint_error_px"
             ]
+            patch_valid = flow_valid[region[0]:region[1], region[2]:region[3]]
+            patch_field = np.stack(
+                [
+                    vx_field[region[0]:region[1], region[2]:region[3]],
+                    vy_field[region[0]:region[1], region[2]:region[3]],
+                ],
+                axis=-1,
+            )[patch_valid]
+            row[f"blockwise_{suffix}_field_median_vx_px"] = float(
+                np.median(patch_field[:, 0])
+            )
+            row[f"blockwise_{suffix}_field_median_vy_px"] = float(
+                np.median(patch_field[:, 1])
+            )
         results.append(row)
 
         figure_path = args.output_dir / f"blockwise_f{flow_index:02d}.png"

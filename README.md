@@ -84,6 +84,14 @@ Local CPU result for three 100 ms windows and three 128 x 128 patches:
 | mean gradient-energy gain | 8.51x |
 | benchmark runtime after inputs are cached | 4.63 s |
 
+The corrected block-wise experiment uses dense per-pixel DSEC flow evaluation:
+
+| metric | result |
+|---|---:|
+| mean median endpoint error | 1.76 px |
+| mean valid pixels with EPE <= 2 px | 55.6% |
+| mean warp coverage | 98.8% |
+
 The endpoint error is measured against the median valid optical-flow vector in
 each patch. This is an approximation because DSEC's 100 ms flow field contains
 rotation, parallax, and independently moving objects rather than one exact
@@ -117,6 +125,7 @@ only after its synthetic and DSEC validation passes.
 | stage | branch | status |
 |---|---|---|
 | block-wise translation | `exp/blockwise-translation` | implemented and evaluated |
+| block-wise phase fix | `fix/blockwise-phase-initialization` | short-baseline initialization validated |
 | local affine | `exp/local-affine` | deferred |
 | homography | `exp/homography` | deferred |
 

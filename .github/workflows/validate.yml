@@ -34,7 +34,7 @@ jobs:
       - name: Run synthetic motion tests
         run: |
           python -c "from tests.test_synthetic import test_recovers_known_constant_translation as a; a(); print('translation test passed')"
-          python -c "from tests.test_blockwise import test_phase_correlation_recovers_content_motion as a, test_blockwise_estimation_recovers_two_motion_regions as b; a(); b(); print('blockwise tests passed')"
+          python -c "from tests.test_blockwise import test_phase_correlation_recovers_content_motion as a, test_blockwise_estimation_recovers_two_motion_regions as b, test_short_baseline_resolves_spurious_zero_long_peak as c; a(); b(); c(); print('blockwise tests passed')"
 
       - name: Validate notebook JSON
         run: |

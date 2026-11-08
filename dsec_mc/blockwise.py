@@ -17,8 +17,11 @@ from .algorithm import contrast_objective, refocus_event_slices
 class BlockwiseTranslation:
     vx_grid: np.ndarray
     vy_grid: np.ndarray
+    initial_vx_grid: np.ndarray
+    initial_vy_grid: np.ndarray
     confidence_grid: np.ndarray
     valid_grid: np.ndarray
+    source_grid: np.ndarray
     center_y: np.ndarray
     center_x: np.ndarray
     fallback_vx: float
@@ -163,7 +166,11 @@ def _refine_tile_translation(
     refine_radius: int,
     max_abs_shift: float,
 ) -> tuple[float, float, float, float]:
-    local_bound = int(np.ceil(max(abs(initial[0]), abs(initial[1])))) + refine_radius
+    bins = len(slices)
+    temporal_factor = (bins - 1) / (2.0 * bins)
+    local_bound = int(
+        np.ceil(max(abs(initial[0]), abs(initial[1])) * temporal_factor)
+    ) + refine_radius
     if local_bound >= min(slices[0].shape) / 2 - 2:
         return initial[0], initial[1], 1.0, 0.0
 
@@ -212,6 +219,41 @@ def _nearest_fill(values: np.ndarray, valid: np.ndarray) -> np.ndarray:
     return values[tuple(indices)]
 
 
+def choose_phase_initialization(
+    long_candidate: tuple[float, float, float],
+    short_candidates: list[tuple[float, float, float]],
+) -> tuple[float, float, str]:
+    """
+    Select a phase-correlation initialization.
+
+    Adjacent temporal groups are preferred when both independently agree. This
+    avoids the long-baseline correlation peak collapsing to zero when event
+    correspondences decorrelate over the full window.
+    """
+    long_vx, long_vy, long_score = long_candidate
+    usable_short = [
+        candidate for candidate in short_candidates if candidate[2] >= 2.0
+    ]
+    if len(usable_short) == 2:
+        first, second = usable_short
+        short_vx = 0.5 * (first[0] + second[0])
+        short_vy = 0.5 * (first[1] + second[1])
+        first_norm = np.hypot(first[0], first[1])
+        second_norm = np.hypot(second[0], second[1])
+        disagreement = np.hypot(first[0] - second[0], first[1] - second[1])
+        tolerance = max(6.0, 0.30 * max(first_norm, second_norm))
+        if disagreement <= tolerance:
+            return float(short_vx), float(short_vy), "short-consensus"
+
+    if long_score >= 2.0 and np.hypot(long_vx, long_vy) > 2.0:
+        return float(long_vx), float(long_vy), "long"
+
+    if usable_short:
+        best = max(usable_short, key=lambda candidate: candidate[2])
+        return float(best[0]), float(best[1]), "short-single"
+    return float(long_vx), float(long_vy), "long-low-confidence"
+
+
 def estimate_blockwise_translation(
     volume: np.ndarray,
     *,
@@ -230,9 +272,13 @@ def estimate_blockwise_translation(
     phase_bins = min(max(1, phase_bins), bins // 2)
     early = np.abs(volume[:phase_bins]).sum(axis=0)
     late = np.abs(volume[-phase_bins:]).sum(axis=0)
+    short_indices = np.rint(np.linspace(0, bins - 1, 3)).astype(np.int32)
+    short_images = [np.abs(volume[index]) for index in short_indices]
     early_center = np.mean((np.arange(phase_bins) + 0.5) / bins)
     late_center = np.mean((np.arange(bins - phase_bins, bins) + 0.5) / bins)
     time_delta = late_center - early_center
+    short_delta = (short_indices[1] - short_indices[0]) / bins
+    short_delta_late = (short_indices[2] - short_indices[1]) / bins
 
     tile_size = min(tile_size, height, width)
     y_starts = _tile_starts(height, tile_size, min(stride, tile_size))
@@ -241,8 +287,11 @@ def estimate_blockwise_translation(
     center_x = np.asarray([start + (tile_size - 1) / 2 for start in x_starts])
     vx_grid = np.zeros((len(y_starts), len(x_starts)), dtype=np.float32)
     vy_grid = np.zeros_like(vx_grid)
+    initial_vx_grid = np.zeros_like(vx_grid)
+    initial_vy_grid = np.zeros_like(vx_grid)
     confidence = np.zeros_like(vx_grid)
     valid = np.zeros_like(vx_grid, dtype=bool)
+    source_grid = np.full(vx_grid.shape, "none", dtype="<U22")
     phase_vectors: list[tuple[float, float]] = []
 
     for iy, y0 in enumerate(y_starts):
@@ -258,16 +307,69 @@ def estimate_blockwise_translation(
             )
             phase_vx = phase_dx / max(time_delta, 1e-8)
             phase_vy = phase_dy / max(time_delta, 1e-8)
-            phase_vectors.append((phase_vx, phase_vy))
+            short_tiles = [
+                image[y0:y0 + tile_size, x0:x0 + tile_size]
+                for image in short_images
+            ]
+            short_events = [int(np.count_nonzero(image)) for image in short_tiles]
+            early_mid_dx, early_mid_dy, early_mid_score = phase_correlation_shift(
+                short_tiles[0],
+                short_tiles[1],
+            )
+            middle_late_dx, middle_late_dy, middle_late_score = phase_correlation_shift(
+                short_tiles[1],
+                short_tiles[2],
+            )
+            min_phase_events = max(20, min_events // 8)
+            short_candidates: list[tuple[float, float, float]] = []
+            if short_events[0] >= min_phase_events and short_events[1] >= min_phase_events:
+                short_candidates.append(
+                    (
+                        early_mid_dx / max(short_delta, 1e-8),
+                        early_mid_dy / max(short_delta, 1e-8),
+                        early_mid_score,
+                    )
+                )
+            if short_events[1] >= min_phase_events and short_events[2] >= min_phase_events:
+                short_candidates.append(
+                    (
+                        middle_late_dx / max(short_delta_late, 1e-8),
+                        middle_late_dy / max(short_delta_late, 1e-8),
+                        middle_late_score,
+                    )
+                )
+
+            initial_vx, initial_vy, phase_source = choose_phase_initialization(
+                (phase_vx, phase_vy, phase_score),
+                short_candidates,
+            )
+            short_scores = [candidate[2] for candidate in short_candidates]
+            selected_phase_score = (
+                float(np.median(short_scores))
+                if phase_source == "short-consensus"
+                else phase_score
+            )
 
             if signed_count < min_events:
                 continue
-            if phase_events < min_events // 2 or phase_score < 2.0:
+            if (
+                phase_source in ("long-low-confidence", "long")
+                and phase_events < min_events // 2
+            ):
                 if fallback is None:
                     continue
                 initial = fallback
+                phase_source = "fallback"
             else:
-                initial = (phase_vx, phase_vy)
+                initial = (initial_vx, initial_vy)
+            initial = (
+                float(np.clip(initial[0], -max_abs_shift, max_abs_shift)),
+                float(np.clip(initial[1], -max_abs_shift, max_abs_shift)),
+            )
+            phase_vectors.append(initial)
+            initial_vx_grid[iy, ix] = initial[0]
+            initial_vy_grid[iy, ix] = initial[1]
+            source_grid[iy, ix] = phase_source
 
             tile_slices = [item for item in tile]
             refined_vx, refined_vy, contrast_gain, _bound = _refine_tile_translation(
@@ -279,7 +381,10 @@ def estimate_blockwise_translation(
             vx_grid[iy, ix] = refined_vx
             vy_grid[iy, ix] = refined_vy
             event_confidence = min(1.0, signed_count / max(float(tile_size * tile_size), 1.0))
-            phase_confidence = min(1.0, max(0.0, (phase_score - 2.0) / 8.0))
+            phase_confidence = min(
+                1.0,
+                max(0.0, (selected_phase_score - 2.0) / 8.0),
+            )
             contrast_confidence = min(1.0, max(0.0, (contrast_gain - 1.0) / 2.0))
             confidence[iy, ix] = (
                 0.25 * event_confidence
@@ -294,8 +399,11 @@ def estimate_blockwise_translation(
         return BlockwiseTranslation(
             vx_grid=np.full_like(vx_grid, fallback[0]),
             vy_grid=np.full_like(vy_grid, fallback[1]),
+            initial_vx_grid=np.full_like(initial_vx_grid, fallback[0]),
+            initial_vy_grid=np.full_like(initial_vy_grid, fallback[1]),
             confidence_grid=np.ones_like(vx_grid),
             valid_grid=np.ones_like(valid),
+            source_grid=np.full_like(source_grid, "fallback"),
             center_y=center_y,
             center_x=center_x,
             fallback_vx=float(fallback[0]),
@@ -326,8 +434,11 @@ def estimate_blockwise_translation(
     return BlockwiseTranslation(
         vx_grid=vx_filled,
         vy_grid=vy_filled,
+        initial_vx_grid=initial_vx_grid,
+        initial_vy_grid=initial_vy_grid,
         confidence_grid=confidence,
         valid_grid=valid,
+        source_grid=source_grid,
         center_y=center_y,
         center_x=center_x,
         fallback_vx=float(fallback[0]),
