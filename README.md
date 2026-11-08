@@ -69,6 +69,9 @@ Open `notebooks/dsec_event_motion_compensation.ipynb` in Google Colab. It uses
 the free CPU runtime, installs only the small scientific Python dependencies,
 clones this repository, runs the test and benchmark, and displays the results.
 
+Block-wise translation has a dedicated experiment notebook:
+`notebooks/blockwise_translation.ipynb`.
+
 ## Reference results
 
 Local CPU result for three 100 ms windows and three 128 x 128 patches:
@@ -104,6 +107,18 @@ and why the production design should use local/multi-model compensation.
   patch median; flow-supervised evaluation is therefore necessary.
 - A practical next step is block-wise motion estimation plus homography or
   locally fitted affine motion, followed by validation on 20-50 ms windows.
+
+## Experiment stages
+
+The stable constant-translation baseline is tagged `baseline-v0.1.0`.
+Subsequent work is isolated on retained experiment branches and enters `main`
+only after its synthetic and DSEC validation passes.
+
+| stage | branch | status |
+|---|---|---|
+| block-wise translation | `exp/blockwise-translation` | implemented and evaluated |
+| local affine | `exp/local-affine` | deferred |
+| homography | `exp/homography` | deferred |
 
 ## Citations
 

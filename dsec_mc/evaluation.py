@@ -53,6 +53,39 @@ def compare_motion(
     }
 
 
+def dense_motion_metrics(
+    vx_field: np.ndarray,
+    vy_field: np.ndarray,
+    flow_xy: np.ndarray,
+    valid: np.ndarray,
+    *,
+    region: tuple[int, int, int, int] | None = None,
+) -> dict[str, float | int]:
+    """Compare endpoint displacement with DSEC forward flow at valid pixels."""
+    if region is not None:
+        y0, y1, x0, x1 = region
+    else:
+        y0, y1, x0, x1 = 0, flow_xy.shape[0], 0, flow_xy.shape[1]
+    selected = valid[y0:y1, x0:x1]
+    if not np.any(selected):
+        raise ValueError("No valid DSEC flow vectors in the evaluation region.")
+    predicted = np.stack(
+        [vx_field[y0:y1, x0:x1], vy_field[y0:y1, x0:x1]],
+        axis=-1,
+    )[selected]
+    truth = flow_xy[y0:y1, x0:x1][selected]
+    error = np.linalg.norm(predicted - truth, axis=1)
+    return {
+        "valid_pixels": int(error.size),
+        "mean_endpoint_error_px": float(np.mean(error)),
+        "median_endpoint_error_px": float(np.median(error)),
+        "p90_endpoint_error_px": float(np.percentile(error, 90)),
+        "within_1px": float(np.mean(error <= 1.0)),
+        "within_2px": float(np.mean(error <= 2.0)),
+        "within_3px": float(np.mean(error <= 3.0)),
+    }
+
+
 def _normalise_for_display(image: np.ndarray) -> np.ndarray:
     smooth = gaussian_filter(image, sigma=1.0, mode="constant", cval=0.0)
     scale = np.percentile(np.abs(smooth), 99.5)
@@ -167,5 +200,96 @@ def save_benchmark_summary(
         axis.set_xticks(sorted({item["flow_index"] for item in results}))
         axis.grid(alpha=0.25)
         axis.legend(frameon=False, fontsize=8)
+    fig.savefig(output_path, dpi=180, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_blockwise_figure(
+    uncompensated: np.ndarray,
+    global_compensated: np.ndarray,
+    blockwise_compensated: np.ndarray,
+    *,
+    vx_field: np.ndarray,
+    vy_field: np.ndarray,
+    flow_xy: np.ndarray,
+    valid: np.ndarray,
+    global_metrics: dict,
+    blockwise_metrics: dict,
+    title: str,
+    output_path: Path,
+) -> None:
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    fig, axes = plt.subplots(2, 2, figsize=(13, 9), constrained_layout=True)
+    panels = (
+        (uncompensated, "Uncompensated events"),
+        (global_compensated, "Global translation"),
+        (blockwise_compensated, "Block-wise translation"),
+    )
+    for axis, (image, label) in zip(axes.flat[:3], panels):
+        axis.imshow(_normalise_for_display(image), cmap="gray", vmin=0, vmax=1)
+        axis.set_title(label)
+        axis.axis("off")
+
+    field_axis = axes[1, 1]
+    magnitude = np.hypot(vx_field, vy_field)
+    image = field_axis.imshow(magnitude, cmap="viridis")
+    step = 12
+    yy, xx = np.mgrid[0:vx_field.shape[0]:step, 0:vx_field.shape[1]:step]
+    field_axis.quiver(
+        xx,
+        yy,
+        vx_field[::step, ::step],
+        vy_field[::step, ::step],
+        color="white",
+        angles="xy",
+        scale_units="xy",
+        scale=1.2,
+        width=0.0025,
+    )
+    field_axis.set_title("Estimated endpoint displacement")
+    field_axis.set_xlim(0, vx_field.shape[1] - 1)
+    field_axis.set_ylim(vx_field.shape[0] - 1, 0)
+    fig.colorbar(image, ax=field_axis, shrink=0.82, label="pixels / window")
+
+    fig.suptitle(
+        f"{title}\n"
+        f"global median EPE {global_metrics['median_endpoint_error_px']:.2f} px | "
+        f"blockwise median EPE {blockwise_metrics['median_endpoint_error_px']:.2f} px | "
+        f"DSEC-valid coverage {np.mean(valid) * 100:.1f}%",
+        fontsize=11,
+    )
+    fig.savefig(output_path, dpi=160, bbox_inches="tight")
+    plt.close(fig)
+
+
+def save_blockwise_benchmark(
+    results: list[dict],
+    *,
+    output_path: Path,
+) -> None:
+    x = np.arange(len(results), dtype=np.float32)
+    labels = [str(item["flow_index"]) for item in results]
+    global_epe = [item["global_median_endpoint_error_px"] for item in results]
+    block_epe = [item["blockwise_median_endpoint_error_px"] for item in results]
+    global_2px = [100.0 * item["global_within_2px"] for item in results]
+    block_2px = [100.0 * item["blockwise_within_2px"] for item in results]
+    width = 0.36
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), constrained_layout=True)
+    axes[0].bar(x - width / 2, global_epe, width, label="global translation")
+    axes[0].bar(x + width / 2, block_epe, width, label="block-wise")
+    axes[0].set_ylabel("median EPE (px)")
+    axes[0].set_title("DSEC flow error on valid pixels")
+
+    axes[1].bar(x - width / 2, global_2px, width, label="global translation")
+    axes[1].bar(x + width / 2, block_2px, width, label="block-wise")
+    axes[1].set_ylabel("valid pixels with EPE <= 2 px (%)")
+    axes[1].set_title("Motion accuracy coverage")
+
+    for axis in axes:
+        axis.set_xticks(x, labels)
+        axis.set_xlabel("DSEC forward-flow window")
+        axis.grid(axis="y", alpha=0.25)
+        axis.legend(frameon=False)
     fig.savefig(output_path, dpi=180, bbox_inches="tight")
     plt.close(fig)
