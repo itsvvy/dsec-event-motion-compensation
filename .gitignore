@@ -1,0 +1,9 @@
+work/
+.venv/
+*.zip
+*.h5
+*.png
+*.pdf
+!outputs/*.png
+__pycache__/
+.ipynb_checkpoints/
