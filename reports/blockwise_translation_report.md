@@ -42,6 +42,11 @@ After inputs are cached, all three windows take about 40 seconds on the local
 ARM CPU, or about 13 seconds per 100 ms window. The implementation is a Python
 reference implementation, not yet an optimized real-time path.
 
+On a free Colab x86 CPU runtime, the same three windows take approximately
+190.9 seconds after data preparation, or 59.7-62.4 seconds per 100 ms window.
+The complete first Colab run, including the 299 MB event download, took about
+3 minutes 37 seconds and remained within the 12.67 GB runtime memory limit.
+
 ## Visual result
 
 The block-wise compensated image preserves substantially more structure than a
