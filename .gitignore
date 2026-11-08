@@ -6,5 +6,6 @@ work/
 *.pdf
 !outputs/*.png
 !outputs/blockwise/*.png
+!outputs/local_affine/*.png
 __pycache__/
 .ipynb_checkpoints/

@@ -72,6 +72,9 @@ clones this repository, runs the test and benchmark, and displays the results.
 Block-wise translation has a dedicated experiment notebook:
 `notebooks/blockwise_translation.ipynb`.
 
+Local affine has a separate experiment notebook:
+`notebooks/local_affine.ipynb`.
+
 ## Reference results
 
 Local CPU result for three 100 ms windows and three 128 x 128 patches:
@@ -126,7 +129,7 @@ only after its synthetic and DSEC validation passes.
 |---|---|---|
 | block-wise translation | `exp/blockwise-translation` | implemented and evaluated |
 | block-wise phase fix | `fix/blockwise-phase-initialization` | short-baseline initialization validated |
-| local affine | `exp/local-affine` | deferred |
+| local affine | `exp/local-affine` | implemented and evaluated |
 | homography | `exp/homography` | deferred |
 
 ## Citations
