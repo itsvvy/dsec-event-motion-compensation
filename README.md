@@ -72,6 +72,9 @@ clones this repository, runs the test and benchmark, and displays the results.
 Block-wise translation has a dedicated experiment notebook:
 `notebooks/blockwise_translation.ipynb`.
 
+Local affine has a separate experiment notebook:
+`notebooks/local_affine.ipynb`.
+
 ## Reference results
 
 Local CPU result for three 100 ms windows and three 128 x 128 patches:
@@ -91,6 +94,9 @@ The corrected block-wise experiment uses dense per-pixel DSEC flow evaluation:
 | mean median endpoint error | 1.76 px |
 | mean valid pixels with EPE <= 2 px | 55.6% |
 | mean warp coverage | 98.8% |
+
+The local-affine experiment preserves block-wise translation as its fallback
+and improves the three-window mean median EPE from 1.76 px to 1.52 px.
 
 The endpoint error is measured against the median valid optical-flow vector in
 each patch. This is an approximation because DSEC's 100 ms flow field contains
@@ -126,7 +132,7 @@ only after its synthetic and DSEC validation passes.
 |---|---|---|
 | block-wise translation | `exp/blockwise-translation` | implemented and evaluated |
 | block-wise phase fix | `fix/blockwise-phase-initialization` | short-baseline initialization validated |
-| local affine | `exp/local-affine` | deferred |
+| local affine | `exp/local-affine` | implemented and evaluated |
 | homography | `exp/homography` | deferred |
 
 ## Citations

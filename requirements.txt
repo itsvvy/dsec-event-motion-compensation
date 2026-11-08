@@ -5,3 +5,4 @@ scipy>=1.10
 matplotlib>=3.7
 Pillow>=9.5
 pypng>=0.20220715
+opencv-python-headless>=4.8
