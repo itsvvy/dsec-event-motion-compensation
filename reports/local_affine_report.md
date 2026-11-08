@@ -45,6 +45,11 @@ per-pixel flow evaluation are used as the block-wise baseline.
 The full model is selective: only regions with both stable ECC convergence and
 better event contrast than block-wise translation are modified.
 
+On a free Colab CPU runtime, the three windows take approximately 186.5
+seconds after data preparation (`58.1-61.6 s` per 100 ms window), with a
+complete first run time of about 3 minutes 28 seconds including the dataset
+download.
+
 ![Local-affine benchmark](../outputs/local_affine/benchmark_summary.png)
 
 ## Target patch

@@ -95,6 +95,9 @@ The corrected block-wise experiment uses dense per-pixel DSEC flow evaluation:
 | mean valid pixels with EPE <= 2 px | 55.6% |
 | mean warp coverage | 98.8% |
 
+The local-affine experiment preserves block-wise translation as its fallback
+and improves the three-window mean median EPE from 1.76 px to 1.52 px.
+
 The endpoint error is measured against the median valid optical-flow vector in
 each patch. This is an approximation because DSEC's 100 ms flow field contains
 rotation, parallax, and independently moving objects rather than one exact
