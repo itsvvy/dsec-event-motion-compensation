@@ -1,5 +1,7 @@
 # Local Affine Experiment
 
+Status: validated and selected as the current default BA model.
+
 ## Scope
 
 This experiment adds local 6-DoF affine motion on top of the validated
@@ -50,7 +52,15 @@ seconds after data preparation (`58.1-61.6 s` per 100 ms window), with a
 complete first run time of about 3 minutes 28 seconds including the dataset
 download.
 
+Final executed notebook:
+[DSEC_DVS_Local_Affine_FINAL](https://colab.research.google.com/drive/14mlnk92BMVWoRsIjAudiT45A4MhIl1w8).
+
 ![Local-affine benchmark](../outputs/local_affine/benchmark_summary.png)
+
+Qualitative results:
+[window 2](../outputs/local_affine/affine_f02.png),
+[window 8](../outputs/local_affine/affine_f08.png),
+[window 12](../outputs/local_affine/affine_f12.png).
 
 ## Target patch
 
@@ -83,6 +93,10 @@ inside the patch, which a single local affine model cannot represent.
 - mean median EPE improves from 1.76 to 1.52 px;
 - mean EPE <= 2 px agreement improves from 55.6% to 63.7%;
 - rejected regions retain the validated block-wise fallback.
+
+The independent BH comparison is documented in
+[`homography_report.md`](homography_report.md). BA remains the default because
+BH does not improve sub-2-pixel coverage or mean EPE across the three windows.
 
 ## Reproduce
 

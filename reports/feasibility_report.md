@@ -1,5 +1,9 @@
 # DVS Event-Only Motion Compensation Feasibility
 
+Status: validated historical baseline. The constant-translation model is the
+`baseline-v0.1.0` reference; current model selection is maintained in the
+block-wise, affine, and homography reports.
+
 ## Question
 
 Can the event-image motion-compensation procedure in presentation page 15 be
@@ -42,21 +46,24 @@ Median variance gain is 3.66x. Mean gradient-energy gain is 8.51x. The left
 textured patch has high sharpness gain but poor flow agreement, which is the
 central warning: contrast gain alone cannot establish motion correctness.
 
+![Constant-translation patch benchmark](../outputs/benchmark_summary.png)
+
 ## Engineering constraints
 
-- The 285 MB DSEC archive downloads and extracts within normal free Colab disk
+- The 299 MB DSEC archive downloads and extracts within normal free Colab disk
   limits.
 - Only one event window is materialized at a time, around 0.95-1.14 million
   events in this sample.
-- Runtime dependencies are NumPy, h5py, hdf5plugin, SciPy, Matplotlib and a
-  pure-Python PNG reader.
+- Baseline runtime dependencies are NumPy, h5py, hdf5plugin, SciPy, Matplotlib
+  and a pure-Python PNG reader; affine and homography add OpenCV headless.
 - The current code is a validation baseline, not an optimized real-time
   implementation. RK3588 latency, power, and live-sensor timestamp behavior
   remain future measurements.
 
-## Recommended next step
+## Follow-up completed
 
-Keep this constant-translation experiment as the first baseline, then add a
-4 x 4 or 8 x 8 block search. Evaluate each block's estimated displacement
-against DSEC flow before integrating the compensated event tensor into the
-fusion network. Test 10, 20, and 50 ms windows after the local model is stable.
+The historical next step was completed: block-wise translation replaced the
+single full-frame vector and was evaluated on dense DSEC flow. Local affine and
+local homography followed as independent experiments. Further model work is
+frozen; later validation should use shorter event windows and hardware data
+without changing the present results.
