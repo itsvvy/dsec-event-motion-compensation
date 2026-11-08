@@ -7,10 +7,24 @@ from scipy.ndimage import shift as image_shift
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from dsec_mc.blockwise import (
+    choose_phase_initialization,
     estimate_blockwise_translation,
     phase_correlation_shift,
     slice_event_images,
 )
+
+
+def test_short_baseline_resolves_spurious_zero_long_peak() -> None:
+    vx, vy, source = choose_phase_initialization(
+        long_candidate=(0.0, 0.0, 10.0),
+        short_candidates=[
+            (-18.1, 4.5, 12.0),
+            (-17.5, 4.2, 13.0),
+        ],
+    )
+    assert source == "short-consensus"
+    assert abs(vx + 17.8) < 0.5
+    assert abs(vy - 4.35) < 0.5
 
 
 def test_phase_correlation_recovers_content_motion() -> None:
