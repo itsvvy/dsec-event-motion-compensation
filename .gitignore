@@ -7,5 +7,6 @@ work/
 !outputs/*.png
 !outputs/blockwise/*.png
 !outputs/local_affine/*.png
+!outputs/homography/*.png
 __pycache__/
 .ipynb_checkpoints/

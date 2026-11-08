@@ -27,16 +27,24 @@ from .affine import (
     estimate_local_affine_field,
     fit_local_affine_from_blocks,
 )
+from .homography import (
+    HomographyField,
+    estimate_homography_from_event_groups,
+    estimate_local_homography_field,
+)
 
 __all__ = [
     "EventWindow",
     "BlockwiseTranslation",
     "AffineField",
+    "HomographyField",
     "contrast_objective",
     "decode_flow_png",
     "estimate_blockwise_translation",
     "estimate_affine_from_event_groups",
     "estimate_local_affine_field",
+    "estimate_homography_from_event_groups",
+    "estimate_local_homography_field",
     "estimate_translation",
     "load_event_window",
     "load_rectification_map",

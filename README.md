@@ -98,6 +98,13 @@ The corrected block-wise experiment uses dense per-pixel DSEC flow evaluation:
 The local-affine experiment preserves block-wise translation as its fallback
 and improves the three-window mean median EPE from 1.76 px to 1.52 px.
 
+The local-homography experiment is independent from local affine: BH uses only
+the block-wise field for initialization and fallback. On the same three
+windows, BH reaches a mean median EPE of 1.52 px but does not improve sub-2-px
+coverage over BA (`62.8%` vs. `63.7%`) and regresses on window 12. Homography
+is therefore implemented and validated as a selected-region experiment, but it
+is not the default model on this non-planar, multi-motion sample.
+
 The endpoint error is measured against the median valid optical-flow vector in
 each patch. This is an approximation because DSEC's 100 ms flow field contains
 rotation, parallax, and independently moving objects rather than one exact
@@ -133,7 +140,7 @@ only after its synthetic and DSEC validation passes.
 | block-wise translation | `exp/blockwise-translation` | implemented and evaluated |
 | block-wise phase fix | `fix/blockwise-phase-initialization` | short-baseline initialization validated |
 | local affine | `exp/local-affine` | implemented and evaluated |
-| homography | `exp/homography` | deferred |
+| local homography | `exp/homography` | implemented; no robust gain over local affine |
 
 ## Citations
 
